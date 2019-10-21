@@ -1,0 +1,7 @@
+*.pyproj
+*.pyd
+__pycache__
+Beijing
+LRAND
+params/*
+train/*
