@@ -3,5 +3,6 @@
 __pycache__
 Beijing
 LRAND
+TensorSAT.egg-info
 params/*
 train/*

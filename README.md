@@ -1,13 +1,17 @@
-TensorSAT - neural net for solving SAT problems
-Michael Bailey 2019
+# TensorSAT - neural net for solving SAT problems
+**Michael Bailey 2019**
 
-This is a machine learning model for taking SAT problems (either from a file or randomly generated) and finding satisfying solutions (if they exist). It draws upon prior work by Selsam et al ("NeuroSAT", https://arxiv.org/abs/1802.03685). Major differences in TensorSAT include a different objective function (in fact, though both networks share a recurrent message-passing model, this program is solving a different problem, strictly speaking), random variables within the network, and a C++ extension which live-feeds randomized training data to the Tensorflow training step. The C++ extension runs in a parallel thread, and uses my custom upgrade of the existing SAT-solver MiniSAT.
+This is a machine learning model for taking SAT problems (either from a file or randomly generated) and finding satisfying solutions (if they exist). It draws upon prior work by Selsam et al ("NeuroSAT", https://arxiv.org/abs/1802.03685). Major differences in TensorSAT include a different objective function (in fact, though both networks share a recurrent message-passing model, this program is solving a different problem, strictly speaking), random variables within the network, and a C++ extension which live-feeds randomized training data to the Tensorflow training step. The C++ extension runs in a parallel thread, and uses my custom upgrade of the SAT-solver MiniSAT.
 
-***Setup***
+For an overview of SAT problems and Conjunctive Normal Form, see https://en.wikipedia.org/wiki/Boolean_satisfiability_problem and https://en.wikipedia.org/wiki/Conjunctive_normal_form
 
-You must first run "python setup.py install" in the RandSAT subdirectory, to compile and install the random problem generator extension. "train.py" and "solve.py" are the main executables. See --help for command line options.
+## Setup
 
-***Tensorflow model***
+You need my extension 'randSAT' to get this to run. Either you can download and install from https://github.com/mister-bailey/RandSAT/ or, running this project's 'python setup.py install' should download and install it.
+
+'train.py' and 'solve.py' are the main executables. See '--help' for command line options. This project uses standard DIMACS .cnf files for SAT-problems.
+
+## Tensorflow model
 
 We describe a model which, for a single set of parameters, can be used on a SAT problem with any number of variables and clauses. For our purposes, a SAT problem is described by a sparse matrix, whose rows correspond to the literals (positive and negative versions of each variable) and whose columns correspond to numbered clauses. A matrix entry i,j has value 1 if literal i is a member of clause j, and 0 otherwise.
 
@@ -19,7 +23,7 @@ Each literal and each clause then passes its incoming data, along with a random 
 
 After the specified number of rounds, each literal computes a single logit from its state, using a shared neural network. The difference of logits between L and (not L) is used to assign a final truth value to L.
 
-***Objective function***
+## Objective function
 
 We have two options for the objective function. In practice, neither objective function on its own trained well, and a weighted sum of the two was best.
 
@@ -29,7 +33,7 @@ The second function compares the final computed logits to a provided satisfying 
 
 In contrast: NeuroSAT (the prior work by others) computed just a single logit per SAT problem, predicting whether the problem was satisfiable or not. (When trained on nice random data, satisfying assignments could often be found implicitly by inspecting the LSTM state). I worked only with satisfiable problems, and while in principle this limits my model (it will just spin its wheels if given an UNSAT problem), in practice it is equal: NeuroSAT was also unable to report that a problem was UNSAT (except when trained on certain special problem classes), and under the hood would just keep searching for a solution. This is because UNSAT proofs are generally quite big, on contrast with SAT proofs, which are just satisfying assignments.
 
-***Training data and random problem generation***
+## Training data and random problem generation
 
 There are libraries of SAT problems available, following various random distributions. However, I wanted to tune the precise problem distribution, and I wanted an extremely large quantity of problems. Therefore, I wrote a C++ Python extension to randomly generate satisfiable problems (and their solutions) according to adjustable parameters.
 
@@ -37,15 +41,15 @@ For a problem with N variables, clauses are added one at a time. To create a cla
 
 For the SAT-solver, I used my custom variant of MiniSAT which performs better than existing variants on random problems.
 
-***Multithreading***
+## Multithreading
 
-We wrote a batch generator, which generates batches of problems according to some random distribution of problem sizes, up to a given total number of variables per batch. This runs in a parallel thread, leaving the generated batches in memory for retrieval by python and Tensorflow, so that problem generation can happen concurrently with training and not impede the training at all (on a multi-core cpu). With the improved MiniSAT, on the hardware I used, batches are generated faster than the GPU can train them.
+I wrote a batch generator, which generates batches of problems according to some random distribution of problem sizes, up to a given total number of variables per batch. This runs in a parallel thread, leaving the generated batches in memory for retrieval by python and Tensorflow, so that problem generation can happen concurrently with training and not impede the training at all (on a multi-core cpu). With the improved MiniSAT, on the hardware I used, batches are generated faster than the GPU can train them.
 
-***Regularization***
+## Regularization
 
 Standard L2 regularization can be added to the objective function, but with every training batch totally unique, there is no risk of overtraining, and I typically don't do this.
 
-***Training***
+## Training
 
 We can choose the size of the LSTM state vectors, and the depth of the various neural nets. The constraints on this are mostly down to available GPU memory. Furthermore, we can choose the number of recurrence rounds to train on. Sequential rounds are not parallelizable, so training time scales with the number of rounds. 40 rounds get good results and doesn't try my patience too much.
 
@@ -53,7 +57,7 @@ I trained different parameter sets for different problem sizes, though, eg., the
 
 I trained using an Adam optimizer. The relative weights of the two objective functions were adjusted to keep them both at the same order of magnitude.
 
-***Prediction***
+## Prediction
 
 While the model is trained at a fixed number of rounds (40), once it's trained it can run for as many rounds as you like. The prediction script keeps iterating rounds until a satisfying solution is found (or until a max number of rounds). Indeed, many problems which weren't solved with 40 rounds were solved in 50 or 60. In fact, most problems from the training distribution were solved in less than 40 rounds.
 

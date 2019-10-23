@@ -9,15 +9,15 @@ import argparse
 from math import sqrt
 
 # defaults
-batch_size=100
-batches_per_epoch = 2
-min_vars=10
-var_vars=0
-learning_rate = .000001
-l2_weight=0.0 #0.00000001
+batches_per_epoch = 10
+batch_size = 1000
+min_vars = 20
+var_vars = 0
+learning_rate = .0000001
+l2_weight = 0 # 0.00000001
 SAT_weight = 10
 test_every = 1
-repeat_batch = 10
+repeat_batch = 1
 
 # parsing arguments
 parser = argparse.ArgumentParser()
@@ -53,6 +53,8 @@ l2_weight= options.l2_weight
 test_every = options.test_every
 repeat_batch = options.repeat_batch
 n_epochs = options.epochs
+SAT_weight = options.SAT_weight
+train_from_solution = options.train_from_solution or (SAT_weight != 1)
 
 
 saver = tf.train.Saver()
@@ -72,22 +74,21 @@ if options.train_from_files:
     loader = load.Loader(train_dir, batches_per_epoch)
     batches_per_epoch = loader.num_batches
     TensorSAT.use_SAT_cost(l2_weight)
-    options.train_from_solution = False
+    train_from_solution = False
 else:
     # creating random training generator
     import PyRandSAT as rs
     print("Creating random problem generator...")
-    bg = rs.BatchGenerator(batch_size,options.min_vars,var_vars=options.var_vars,model=options.train_from_solution)
-    if options.train_from_solution:
-        if options.SAT_weight != 0.0:
-            d = 1.0 / sqrt(1.0 + options.SAT_weight * options.SAT_weight)
-            sw = d * options.SAT_weight
+    bg = rs.BatchGenerator(batch_size,options.min_vars,var_vars=options.var_vars,model=train_from_solution)
+    if train_from_solution:
+        if SAT_weight != 0.0:
+            d = 1.0 / sqrt(1.0 + SAT_weight * SAT_weight)
+            sw = d * SAT_weight
             lw = d
             TensorSAT.use_SAT_and_label_cost(sw,lw,l2_weight)
         else: TensorSAT.use_label_cost(l2_weight)
     else:
         TensorSAT.use_SAT_cost(l2_weight)
-        options.SAT_weight = 0
     clauses, membership = bg.getClauseMembership()
     print("First batch has %d clauses and %d membership" % (clauses, membership))
 
@@ -140,7 +141,7 @@ def train_epoch(epoch):
         if (batch_num % repeat_batch == 0 and (options.wait_for_batch or bg.batchReady())) or LC_matrix is None:
             if options.train_from_files: LC_matrix = loader.get_batch(batch_num)
             else: LC_matrix = bg.getNextBatch()
-            if options.train_from_solution: LC_matrix, solution = LC_matrix
+            if train_from_solution: LC_matrix, solution = LC_matrix
         fd = TensorSAT.feed_dict(LC_matrix, labels = solution)
         _, cost, cost2, sat_fraction = TensorSAT.sess.run([apply_gradients,*fcosts,TensorSAT.sat_fraction], feed_dict=fd)
         costs.append(cost)
@@ -170,7 +171,7 @@ for epoch in range(n_epochs):
                 fd = TensorSAT.feed_dict(loader.get_test())
             else:
                 test_batch = bg.getNextBatch()
-                if options.train_from_solution:
+                if train_from_solution:
                     test_batch, test_sol = test_batch
                 else: test_sol = None
         fd = TensorSAT.feed_dict(test_batch, labels=test_sol)

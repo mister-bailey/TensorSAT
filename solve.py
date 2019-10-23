@@ -5,6 +5,7 @@ import TensorSAT as ts
 import argparse
 import os
 import load
+import glob
 
 # parsing arguments
 parser = argparse.ArgumentParser()
@@ -12,14 +13,23 @@ parser.add_argument('problem_file', action='store', type=str, nargs='?', help='D
 parser.add_argument('-r', '--rounds', action='store', type=int, default=100, help='Max number of recurrence rounds to run')
 parser.add_argument('-rp', '--random', action='store', type=int, default=0, help='Solve random problem with ARG variables')
 parser.add_argument('-md', '--model_dir', action='store', type=str, default='params', help='Directory with saved model parameters')
+parser.add_argument('-mf', '--model_file', action='store', type=str, default=None, help='Model file (minus extension) to load model from')
 
 options = parser.parse_args()
+model_file = options.model_file
 
 # loading model
+if model_file is None:
+    #model_file = tf.train.latest_checkpoint(options.model_dir)
+    if model_file is None:
+        models = glob.glob(options.model_dir + '/*.index')
+        models.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        #print(models)
+        model_file = models[0][:-6]
+
 ts.init_all_variables()
-checkpoint = tf.train.latest_checkpoint(options.model_dir)
-print('Loading model from %s...' % checkpoint)
-tf.train.Saver().restore(ts.sess, checkpoint)
+print('Loading model from %s...' % model_file)
+tf.train.Saver().restore(ts.sess, model_file)
 
 # loading problem
 if options.random == 0:
